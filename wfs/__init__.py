@@ -1,1 +1,1 @@
-default_app_config = 'wfs.apps.WFSConfig'
+default_app_config = 'django_wfs.wfs.apps.WFSConfig'

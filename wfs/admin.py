@@ -1,5 +1,5 @@
 from django.contrib import admin
-from wfs.models import Service, FeatureType, MetadataURL, BoundingBox,\
+from django_wfs.wfs.models import Service, FeatureType, MetadataURL, BoundingBox,\
     ResolutionFilter
 from django import forms
 

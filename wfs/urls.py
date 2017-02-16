@@ -1,5 +1,5 @@
 from django.conf.urls import url
-from wfs.views import global_handler,related_handler
+from django_wfs.wfs.views import global_handler,related_handler
 
 # APP
 urlpatterns = [

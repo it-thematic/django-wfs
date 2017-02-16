@@ -1,22 +1,22 @@
 from django.shortcuts import render
+from django.db import connection
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.gis.db.models.functions import AsGML, Transform
 from django.contrib.gis.geos import Polygon, MultiPolygon
-from wfs.functions import parse_query
-from wfs.models import Service, FeatureType
+from django.contrib.gis.geos.geometry import GEOSGeometry
+from django.contrib.gis.db.models.aggregates import Extent
+from django.http.response import StreamingHttpResponse
 import json
 import logging
-from django.contrib.gis.db.models.aggregates import Extent
-from wfs.helpers import CRS, WGS84_CRS
-from django.http.response import StreamingHttpResponse
 import decimal
 import re
-from django.db import connection
-from django.contrib.gis.geos.geometry import GEOSGeometry
 import io
-from wfs.sqlutils import parse_single, get_identifiers, find_identifier,\
+from django_wfs.wfs.functions import parse_query
+from django_wfs.wfs.models import Service, FeatureType
+from django_wfs.wfs.helpers import CRS, WGS84_CRS
+from django_wfs.wfs.sqlutils import parse_single, get_identifiers, find_identifier,\
     build_function_call, add_condition, build_comparison, replace_identifier
-from wfs.xmlutils import parse_xml_base, parse_xml_feature, parse_xml_transaction
+from django_wfs.wfs.xmlutils import parse_xml_base, parse_xml_feature, parse_xml_transaction
 
 log = logging.getLogger(__name__)
 
