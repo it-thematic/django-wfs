@@ -346,7 +346,7 @@ class GeoJsonIterator:
 
                 os.write('%s{"type":"Feature","id":%s,"geometry":%s,"properties":%s}' % (
                     sep, json.dumps("%s.%d" % (ftype.name, feature.id)),
-                    feature.geometry.geojson,
+                    feature.geometry.geojson if feature.geometry.srid == self.crs.srid else feature.geometry.transform(self.crs.srid, True).geojson,
                     json.dumps(feature.props, cls=DecimalEncoder)))
 
                 if os.tell() > 16383:
