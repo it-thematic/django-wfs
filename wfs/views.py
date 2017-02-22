@@ -969,7 +969,7 @@ def transaction(request, service, wfs_version):
                                 cleanup_geometry = GEOSGeometry(geom)
                             else:
                                 cleanup_geometry.union(geom)
-                        obj.delete()
+                        # obj.delete()
                     delete_count += 1
 
             elif transaction_type['type'] == 'update':
@@ -997,7 +997,7 @@ def transaction(request, service, wfs_version):
                         else:
                             cleanup_geometry.union(geom)
                     apply_attribute(obj, transaction_type['property'])
-                    obj.save()
+                    # obj.save()
                     update_count += 1
                     geom = getattr(obj, _get_geom_column(obj._meta).name, None)
                     if geom:
@@ -1014,6 +1014,7 @@ def transaction(request, service, wfs_version):
                     if model:
                         new_obj = model()
                         apply_attribute(new_obj, transaction_type['property'])
+                        # new_obj.save()
                         geom = getattr(obj, _get_geom_column(obj._meta).name, None)
                         if geom:
                             if not cleanup_geometry:
@@ -1048,13 +1049,19 @@ def apply_attribute(obj, attributes):
             setattr(obj, prop_name, type(getattr(obj, prop_name))(prop_value))
         else:
             geom = xml_to_geos(prop_value)
-            field = _get_geom_column(obj._meta)
-            fgeom = getattr(obj, field.name, None)
-            if fgeom and fgeom.srid != geom.srid:
-                geom.transform(fgeom.srid)
-            if fgeom.geom_typeid in [4, 5, 6]:
-               geom = MultiPolygon(geom)
-            setattr(obj, field.name, geom)
+            if obj.pk:
+                field = _get_geom_column(obj._meta)
+                fgeom = getattr(obj, field.name, None)
+                if fgeom and fgeom.srid != geom.srid:
+                    geom.transform(fgeom.srid)
+                if fgeom.geom_typeid in [4, 5, 6]:
+                   geom = MultiPolygon(geom)
+                setattr(obj, field.name, geom)
+            else:
+                field = _get_geom_column(obj._meta)
+                if field.srid != geom.srid:
+                    geom.transform(field.srid)
+                setattr(obj, field.name, geom)
 
 
 def xml_to_geos(gmlgeomerty):

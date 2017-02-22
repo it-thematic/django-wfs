@@ -84,7 +84,7 @@ def parse_xml_transaction(request):
             transaction['property'] = transaction_property
             property_list = [xml_property for xml_property in transaction_type if etree.QName(xml_property).localname.lower() == 'property']
             for xml_property in property_list:
-                prop_name, prop_value = xml_property[0:2];
+                prop_name, prop_value = xml_property[0:2]
                 if prop_name.text.lower() == 'geometry':
                     geometry = []
                     transaction_property[prop_name.text] = geometry
@@ -114,15 +114,15 @@ def parse_xml_transaction(request):
                 transaction_property = {}
                 transaction['property'] = transaction_property
                 for xml_property in transaction_insert:
-                    name = etree.QName(xml_property).localname.lower()
-                    if name == 'geometry':
+                    prop_name = etree.QName(xml_property).localname.lower()
+                    if prop_name == 'geometry':
                         geometry = []
-                        transaction_property[prop_name.text] = geometry
-                        for xml_geometry in prop_value:
+                        transaction_property[prop_name] = geometry
+                        for xml_geometry in xml_property:
                             fgeometry = {}
                             for key, value in xml_geometry.attrib.items():
                                 fgeometry[key] = value
-                            fgeometry['geometry'] = geometry.append(etree.tostring(xml_geometry))
+                            fgeometry['geometry'] = etree.tostring(xml_geometry)
                             geometry.append(fgeometry)
                     else:
                         transaction_property[name] = xml_property.text
