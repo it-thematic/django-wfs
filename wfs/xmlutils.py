@@ -86,14 +86,7 @@ def parse_xml_transaction(request):
             for xml_property in property_list:
                 prop_name, prop_value = xml_property[0:2]
                 if prop_name.text.lower() == 'geometry':
-                    geometry = []
-                    transaction_property[prop_name.text] = geometry
-                    for xml_geometry in prop_value:
-                        fgeometry = {}
-                        for key, value in xml_geometry.attrib.items():
-                            fgeometry[key] = value
-                        fgeometry['geometry'] = etree.tostring(xml_geometry)
-                        geometry.append(fgeometry)
+                    transaction_property[prop_name.text] = parse_xml_geometry(prop_value)
                 else:
                     transaction_property[prop_name.text] = prop_value.text
 
@@ -116,19 +109,25 @@ def parse_xml_transaction(request):
                 for xml_property in transaction_insert:
                     prop_name = etree.QName(xml_property).localname.lower()
                     if prop_name == 'geometry':
-                        geometry = []
-                        transaction_property[prop_name] = geometry
-                        for xml_geometry in xml_property:
-                            fgeometry = {}
-                            for key, value in xml_geometry.attrib.items():
-                                fgeometry[key] = value
-                            fgeometry['geometry'] = etree.tostring(xml_geometry)
-                            geometry.append(fgeometry)
+                        transaction_property[prop_name] = parse_xml_geometry(xml_property)
                     else:
-                        transaction_property[name] = xml_property.text
+                        transaction_property[prop_name] = xml_property.text
             params['transaction_type'].append(transaction)
     return params
 
 
-
-
+def parse_xml_geometry(xml_geometry):
+    geometry = []
+    for xml_geom in xml_geometry:
+        # Провера на multipolygon, т.к. функция from_gml() создаёт, но не заполняет Multipolygon
+        if etree.QName(xml_geom).localname.lower().startswith('multi'):
+            xml_polygons = [xml_polygon for xml_member in xml_geom for xml_polygon in xml_member]
+        else:
+            xml_polygons = [xml_geom]
+        for xml_polygon in xml_polygons:
+            fgeometry = {}
+            for key, value in xml_polygon.attrib.items():
+                fgeometry[key] = value
+            fgeometry['geometry'] = etree.tostring(xml_polygon)
+            geometry.append(fgeometry)
+    return geometry

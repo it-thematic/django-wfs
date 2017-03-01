@@ -17,7 +17,7 @@ from django_wfs.wfs.helpers import CRS, WGS84_CRS
 from django_wfs.wfs.sqlutils import parse_single, get_identifiers, find_identifier,\
     build_function_call, add_condition, build_comparison, replace_identifier
 from django_wfs.wfs.xmlutils import parse_xml_base, parse_xml_feature, parse_xml_transaction
-
+from api.utils import api_mapproxy
 log = logging.getLogger(__name__)
 
 
@@ -944,13 +944,14 @@ def transaction(request, service, wfs_version):
         return wfs_exception(request, "MissingParameters", "")
 
     cleanup_geometry = None
-    cleanup = {'cleanup': cleanup_geometry, 'srs': None}
+    cleanup = {'geometry': cleanup_geometry, 'srid': None, 'layers': set()}
 
 
     feature_list = type_feature_iter(inputFormat != JSON_OUTPUT_FORMAT, crs.srid, precision)
     closeable = feature_list
     try:
         for transaction_type in params.get('transaction_type', []):
+            cleanup['layers'].update([transaction_type.get('typeName')])
             if transaction_type['type'] == 'delete':
                 for key, value in transaction_type['filter'].items():
                     # other filters type not implemented
@@ -968,7 +969,7 @@ def transaction(request, service, wfs_version):
                             if not cleanup_geometry:
                                 cleanup_geometry = GEOSGeometry(geom)
                             else:
-                                cleanup_geometry.union(geom)
+                                cleanup_geometry = cleanup_geometry.union(geom)
                         # obj.delete()
                     delete_count += 1
 
@@ -995,7 +996,7 @@ def transaction(request, service, wfs_version):
                         if not cleanup_geometry:
                             cleanup_geometry = GEOSGeometry(geom)
                         else:
-                            cleanup_geometry.union(geom)
+                            cleanup_geometry = cleanup_geometry.union(geom)
                     apply_attribute(obj, transaction_type['property'])
                     # obj.save()
                     update_count += 1
@@ -1004,7 +1005,7 @@ def transaction(request, service, wfs_version):
                         if not cleanup_geometry:
                             cleanup_geometry = GEOSGeometry(geom)
                         else:
-                            cleanup_geometry.union(geom)
+                            cleanup_geometry = cleanup_geometry.union(geom)
 
             elif transaction_type['type'] == 'insert':
                 ftname = transaction_type['typeName']
@@ -1015,15 +1016,19 @@ def transaction(request, service, wfs_version):
                         new_obj = model()
                         apply_attribute(new_obj, transaction_type['property'])
                         # new_obj.save()
-                        geom = getattr(obj, _get_geom_column(obj._meta).name, None)
+                        geom = getattr(new_obj, _get_geom_column(new_obj._meta).name, None)
                         if geom:
                             if not cleanup_geometry:
                                 cleanup_geometry = GEOSGeometry(geom)
                             else:
-                                cleanup_geometry.union(geom)
+                                cleanup_geometry = cleanup_geometry.union(geom)
                         insert_count += 1
                         insert_list.append(new_obj)
 
+        if cleanup_geometry:
+            cleanup['geometry'] = cleanup_geometry.wkt
+            cleanup['srid'] = cleanup_geometry.srid
+        api_mapproxy(cleanup)
         if ft:
             feature_list.add_type_with_features(ft, insert_list)
         if wfs_version == '1.1.0':
@@ -1044,9 +1049,11 @@ def transaction(request, service, wfs_version):
 
 
 def apply_attribute(obj, attributes):
+    if 'id' in attributes.keys():
+        del attributes['id']
     for prop_name, prop_value in attributes.items():
         if prop_name.lower() != 'geometry':
-            setattr(obj, prop_name, type(getattr(obj, prop_name))(prop_value))
+            setattr(obj, prop_name, prop_value)
         else:
             geom = xml_to_geos(prop_value)
             if obj.pk:
@@ -1054,8 +1061,8 @@ def apply_attribute(obj, attributes):
                 fgeom = getattr(obj, field.name, None)
                 if fgeom and fgeom.srid != geom.srid:
                     geom.transform(fgeom.srid)
-                if fgeom.geom_typeid in [4, 5, 6]:
-                   geom = MultiPolygon(geom)
+                if fgeom.geom_typeid != geom.geom_typeid:
+                    geom = GEOSGeometry(geom)
                 setattr(obj, field.name, geom)
             else:
                 field = _get_geom_column(obj._meta)
@@ -1069,7 +1076,7 @@ def xml_to_geos(gmlgeomerty):
     crs = CRS(gmlgeomerty[0]['srsName'])
     geos.srid = crs.srid
     for geom in gmlgeomerty[1:]:
-        geom.union(GEOSGeometry.from_gml(geom['geometry']))
+        geos = geos.union(GEOSGeometry.from_gml(geom['geometry']))
     return geos
 
 
