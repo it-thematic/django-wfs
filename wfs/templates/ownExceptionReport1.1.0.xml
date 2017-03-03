@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<ExceptionReport version="1.1.0" xmlns="http://www.opengis.net/ows/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ows="http://www.opengis.net/ows" xsi:schemaLocation="http://www.opengis.net/ows/1.1 http://schemas.opengis.net/ows/1.1.0/owsExceptionReport.xsd">
+	<ows:Exception exceptionCode="{{ code }}" locator="{{ localtor }}">
+		<ows:ExceptionText>{{ text }}</ows:ExceptionText>
+	</ows:Exception>
+</ExceptionReport>

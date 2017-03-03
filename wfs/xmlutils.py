@@ -131,3 +131,9 @@ def parse_xml_geometry(xml_geometry):
             fgeometry['geometry'] = etree.tostring(xml_polygon)
             geometry.append(fgeometry)
     return geometry
+
+
+def find_attribute(request, attribute_name=str):
+    xml_str = request.body.decode(request.encoding)
+    root = etree.fromstring(xml_str)
+    return root.attrib['version']

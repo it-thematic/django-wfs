@@ -16,7 +16,7 @@ from django_wfs.wfs.models import Service, FeatureType
 from django_wfs.wfs.helpers import CRS, WGS84_CRS
 from django_wfs.wfs.sqlutils import parse_single, get_identifiers, find_identifier,\
     build_function_call, add_condition, build_comparison, replace_identifier
-from django_wfs.wfs.xmlutils import parse_xml_base, parse_xml_feature, parse_xml_transaction
+from django_wfs.wfs.xmlutils import parse_xml_base, parse_xml_feature, parse_xml_transaction, find_attribute
 from api.utils import api_mapproxy
 log = logging.getLogger(__name__)
 
@@ -158,10 +158,6 @@ def describefeaturetype(request, service, wfs_version):
     elif request.method == 'POST':
         params = parse_xml_base(request)
 
-    if request.method == 'GET':
-        params = request.GET
-    elif request.method == 'POST':
-        params = parse_xml_base(request)
     if not params:
         return wfs_exception(request, "MissingParameters", "")
 
@@ -779,7 +775,7 @@ def wfs_exception(request, code, locator, parameter=None):
     context = {}
     context['code'] = code
     context['locator'] = locator
-
+    wfs_version = '1.0.0'
     text = ""
     if code == "InvalidParameterValue":
         text = "Invalid value '" + str(parameter) + "' in parameter '" + str(locator) + "'."
@@ -801,7 +797,14 @@ def wfs_exception(request, code, locator, parameter=None):
         text = "Something went wrong."
 
     context['text'] = text
-    return render(request, 'exception.xml', context, content_type="text/xml")
+    if request.method == 'GET':
+        wfs_version = request.GET.get('version') or wfs_version
+    elif request.method == 'POST':
+        wfs_version = find_attribute(request, 'version') or wfs_version
+    if wfs_version == '1.0.0':
+        return render(request, 'exception.xml', context, content_type="text/xml")
+    else:
+        return render(request, 'ownExceptionReport1.1.0.xml', context, content_type="text/xml")
 
 
 #
@@ -952,6 +955,7 @@ def transaction(request, service, wfs_version):
     try:
         for transaction_type in params.get('transaction_type', []):
             cleanup['layers'].update([transaction_type.get('typeName')])
+
             if transaction_type['type'] == 'delete':
                 for key, value in transaction_type['filter'].items():
                     # other filters type not implemented
@@ -970,7 +974,7 @@ def transaction(request, service, wfs_version):
                                 cleanup_geometry = GEOSGeometry(geom)
                             else:
                                 cleanup_geometry = cleanup_geometry.union(geom)
-                        # obj.delete()
+                        obj.delete()
                     delete_count += 1
 
             elif transaction_type['type'] == 'update':
@@ -998,7 +1002,7 @@ def transaction(request, service, wfs_version):
                         else:
                             cleanup_geometry = cleanup_geometry.union(geom)
                     apply_attribute(obj, transaction_type['property'])
-                    # obj.save()
+                    obj.save()
                     update_count += 1
                     geom = getattr(obj, _get_geom_column(obj._meta).name, None)
                     if geom:
@@ -1015,7 +1019,7 @@ def transaction(request, service, wfs_version):
                     if model:
                         new_obj = model()
                         apply_attribute(new_obj, transaction_type['property'])
-                        # new_obj.save()
+                        new_obj.save()
                         geom = getattr(new_obj, _get_geom_column(new_obj._meta).name, None)
                         if geom:
                             if not cleanup_geometry:
