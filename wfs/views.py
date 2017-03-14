@@ -955,6 +955,8 @@ def transaction(request, service, wfs_version):
     try:
         for transaction_type in params.get('transaction_type', []):
             cleanup['layers'].update([transaction_type.get('typeName')])
+            ftname = transaction_type['typeName']
+            ft = service.featuretype_set.get(name=ftname)
 
             if transaction_type['type'] == 'delete':
                 for key, value in transaction_type['filter'].items():
@@ -962,7 +964,8 @@ def transaction(request, service, wfs_version):
                     if key != 'featureid':
                         continue
                     ftname, fid = get_feature_from_parameter(value)
-                    ft = service.featuretype_set.get(name=ftname)
+                    if not ft:
+                        ft = service.featuretype_set.get(name=ftname)
                     try:
                         obj = ft.model.model_class().objects.get(id=fid)
                     except:
@@ -983,7 +986,8 @@ def transaction(request, service, wfs_version):
                     if key != 'featureid':
                         continue
                     ftname, fid = get_feature_from_parameter(value)
-                    ft = service.featuretype_set.get(name=ftname)
+                    if not ft:
+                        ft = service.featuretype_set.get(name=ftname)
                     try:
                         obj = ft.model.model_class().objects.get(id=fid)
                     except:
@@ -1012,8 +1016,6 @@ def transaction(request, service, wfs_version):
                             cleanup_geometry = cleanup_geometry.union(geom)
 
             elif transaction_type['type'] == 'insert':
-                ftname = transaction_type['typeName']
-                ft = service.featuretype_set.get(name=ftname)
                 if ft.model:
                     model = ft.model.model_class()
                     if model:
