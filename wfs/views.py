@@ -1063,18 +1063,18 @@ def apply_attribute(obj, attributes):
         else:
             geom = xml_to_geos(prop_value)
             if obj.pk:
-                field = _get_geom_column(obj._meta)
-                fgeom = getattr(obj, field.name, None)
+                fgeom = _get_geom_column(obj._meta)
+                fvgeom = getattr(obj, fgeom.name, None)
                 if fgeom and fgeom.srid != geom.srid:
                     geom.transform(fgeom.srid)
-                if fgeom.geom_typeid != geom.geom_typeid:
+                if (fgeom.geom_type != 'GEOMETRY') or (fvgeom and fvgeom.geom_typeid != geom.geom_typeid):
                     geom = GEOSGeometry(geom)
-                setattr(obj, field.name, geom)
+                setattr(obj, fgeom.name, geom)
             else:
-                field = _get_geom_column(obj._meta)
-                if field.srid != geom.srid:
-                    geom.transform(field.srid)
-                setattr(obj, field.name, geom)
+                fgeom = _get_geom_column(obj._meta)
+                if fgeom.srid != geom.srid:
+                    geom.transform(fgeom.srid)
+                setattr(obj, fgeom.name, geom)
 
 
 def xml_to_geos(gmlgeomerty):
