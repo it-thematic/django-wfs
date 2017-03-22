@@ -1034,7 +1034,7 @@ def transaction(request, service, wfs_version):
         if cleanup_geometry:
             cleanup['geometry'] = cleanup_geometry.wkt
             cleanup['srid'] = cleanup_geometry.srid
-        # api_mapproxy(cleanup)
+        api_mapproxy(cleanup)
         if ft:
             feature_list.add_type_with_features(ft, insert_list)
         if wfs_version == '1.1.0':
