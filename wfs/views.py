@@ -702,6 +702,9 @@ def getfeature(request, service, wfs_version):
                         if flter:
                             objs = objs.filter(**flter)
 
+                        notnull = {geom_field+"__isnull": False}
+                        objs = objs.filter(**notnull)
+
                         if resolution is not None:
 
                             res_flter = ft.resolutionfilter_set.filter(min_resolution__lte=resolution).order_by("-min_resolution").first()
