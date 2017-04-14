@@ -17,12 +17,20 @@ from django_wfs.wfs.helpers import CRS, WGS84_CRS
 from django_wfs.wfs.sqlutils import parse_single, get_identifiers, find_identifier,\
     build_function_call, add_condition, build_comparison, replace_identifier
 from django_wfs.wfs.xmlutils import parse_xml_base, parse_xml_feature, parse_xml_transaction, find_attribute
-from api.utils import api_mapproxy
 log = logging.getLogger(__name__)
 
 
 # xmllint --schema wfs/validation_schemas/WFS-capabilities.xsd
 # "http://localhost:8000/wfs/?SERVICE=WFS&REQUEST=GetCapabilities&VERSION=99.99.99&bbox=1.2,3,4.5,-7" --noout
+
+global_notify = None
+# Декоротор для вызова метода очистки
+def global_notify_decorator(function):
+    def wrapper(*args, **kwargs):
+        if global_notify:
+            global_notify(params=parse_xml_transaction(kwargs.get('request', None)), *args, **kwargs)
+        return function(*args, **kwargs)
+    return wrapper
 
 
 @csrf_exempt
@@ -79,7 +87,7 @@ def global_handler(request, service_id):
     elif request_type == "getfeature":
         ret = getfeature(request, wfs, wfs_version)
     elif request_type == "transaction":
-        ret = transaction(request, wfs, wfs_version)
+        ret = transaction(request=request, service=wfs, wfs_version=wfs_version)
     else:
         ret = wfs_exception(request, "UnknownError", "")
     ret['Access-Control-Allow-Origin'] = '*'
@@ -931,7 +939,7 @@ def related_handler(request, service_id):
 
 RELEASE_ACTIONS = ('ALL, SOME')
 
-
+@global_notify_decorator
 def transaction(request, service, wfs_version):
     context = {}
     insert_list = []
@@ -949,15 +957,10 @@ def transaction(request, service, wfs_version):
     if not params:
         return wfs_exception(request, "MissingParameters", "")
 
-    cleanup_geometry = None
-    cleanup = {'geometry': cleanup_geometry, 'srid': None, 'layers': set()}
-
-
     feature_list = type_feature_iter(inputFormat != JSON_OUTPUT_FORMAT, crs.srid, precision)
     closeable = feature_list
     try:
         for transaction_type in params.get('transaction_type', []):
-            cleanup['layers'].update([transaction_type.get('typeName')])
             ftname = transaction_type['typeName']
             ft = service.featuretype_set.get(name=ftname)
 
@@ -974,12 +977,6 @@ def transaction(request, service, wfs_version):
                     except:
                         obj = None
                     if obj:
-                        geom = getattr(obj, _get_geom_column(obj._meta).name, None)
-                        if geom:
-                            if not cleanup_geometry:
-                                cleanup_geometry = GEOSGeometry(geom)
-                            else:
-                                cleanup_geometry = cleanup_geometry.union(geom)
                         obj.delete()
                     delete_count += 1
 
@@ -1002,21 +999,9 @@ def transaction(request, service, wfs_version):
                     except:
                         obj = None
                 if obj:
-                    geom = getattr(obj, _get_geom_column(obj._meta).name, None)
-                    if geom:
-                        if not cleanup_geometry:
-                            cleanup_geometry = GEOSGeometry(geom)
-                        else:
-                            cleanup_geometry = cleanup_geometry.union(geom)
                     apply_attribute(obj, transaction_type['property'])
                     obj.save()
                     update_count += 1
-                    geom = getattr(obj, _get_geom_column(obj._meta).name, None)
-                    if geom:
-                        if not cleanup_geometry:
-                            cleanup_geometry = GEOSGeometry(geom)
-                        else:
-                            cleanup_geometry = cleanup_geometry.union(geom)
 
             elif transaction_type['type'] == 'insert':
                 if ft.model:
@@ -1025,19 +1010,9 @@ def transaction(request, service, wfs_version):
                         new_obj = model()
                         apply_attribute(new_obj, transaction_type['property'])
                         new_obj.save()
-                        geom = getattr(new_obj, _get_geom_column(new_obj._meta).name, None)
-                        if geom:
-                            if not cleanup_geometry:
-                                cleanup_geometry = GEOSGeometry(geom)
-                            else:
-                                cleanup_geometry = cleanup_geometry.union(geom)
                         insert_count += 1
                         insert_list.append(new_obj)
 
-        if cleanup_geometry:
-            cleanup['geometry'] = cleanup_geometry.wkt
-            cleanup['srid'] = cleanup_geometry.srid
-        api_mapproxy(cleanup)
         if ft:
             feature_list.add_type_with_features(ft, insert_list)
         if wfs_version == '1.1.0':
