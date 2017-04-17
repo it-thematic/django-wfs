@@ -963,56 +963,57 @@ def transaction(request, service, wfs_version):
         for transaction_type in params.get('transaction_type', []):
             ftname = transaction_type['typeName']
             ft = service.featuretype_set.get(name=ftname)
+            try:
+                if transaction_type['type'] == 'delete':
+                    for key, value in transaction_type['filter'].items():
+                        # other filters type not implemented
+                        if key != 'featureid':
+                            continue
+                        ftname, fid = get_feature_from_parameter(value)
+                        if not ft:
+                            ft = service.featuretype_set.get(name=ftname)
+                        try:
+                            obj = ft.model.model_class().objects.get(id=fid)
+                        except:
+                            obj = None
+                        if obj:
+                            obj.delete()
+                            delete_count += 1
 
-            if transaction_type['type'] == 'delete':
-                for key, value in transaction_type['filter'].items():
-                    # other filters type not implemented
-                    if key != 'featureid':
-                        continue
-                    ftname, fid = get_feature_from_parameter(value)
-                    if not ft:
-                        ft = service.featuretype_set.get(name=ftname)
-                    try:
-                        obj = ft.model.model_class().objects.get(id=fid)
-                    except:
-                        obj = None
+                elif transaction_type['type'] == 'update':
+                    for key, value in transaction_type['filter'].items():
+                        # other filters type not implemented
+                        if key != 'featureid':
+                            continue
+                        ftname, fid = get_feature_from_parameter(value)
+                        if not ft:
+                            ft = service.featuretype_set.get(name=ftname)
+                        try:
+                            obj = ft.model.model_class().objects.get(id=fid)
+                        except:
+                            obj = None
+                    if not obj and 'id' in transaction_type['property'].keys():
+                        fid = transaction_type['property'].get('id', -1)
+                        try:
+                            obj = ft.model.model_class().objects.get(id=fid)
+                        except:
+                            obj = None
                     if obj:
-                        obj.delete()
-                    delete_count += 1
+                        apply_attribute(obj, transaction_type['property'])
+                        obj.save()
+                        update_count += 1
 
-            elif transaction_type['type'] == 'update':
-                for key, value in transaction_type['filter'].items():
-                    # other filters type not implemented
-                    if key != 'featureid':
-                        continue
-                    ftname, fid = get_feature_from_parameter(value)
-                    if not ft:
-                        ft = service.featuretype_set.get(name=ftname)
-                    try:
-                        obj = ft.model.model_class().objects.get(id=fid)
-                    except:
-                        obj = None
-                if not obj and 'id' in transaction_type['property'].keys():
-                    fid = transaction_type['property'].get('id', -1)
-                    try:
-                        obj = ft.model.model_class().objects.get(id=fid)
-                    except:
-                        obj = None
-                if obj:
-                    apply_attribute(obj, transaction_type['property'])
-                    obj.save()
-                    update_count += 1
-
-            elif transaction_type['type'] == 'insert':
-                if ft.model:
-                    model = ft.model.model_class()
-                    if model:
-                        new_obj = model()
-                        apply_attribute(new_obj, transaction_type['property'])
-                        new_obj.save()
-                        insert_count += 1
-                        insert_list.append(new_obj)
-
+                elif transaction_type['type'] == 'insert':
+                    if ft.model:
+                        model = ft.model.model_class()
+                        if model:
+                            new_obj = model()
+                            apply_attribute(new_obj, transaction_type['property'])
+                            new_obj.save()
+                            insert_count += 1
+                            insert_list.append(new_obj)
+            except Exception as e:
+                pass
         if ft:
             feature_list.add_type_with_features(ft, insert_list)
         if wfs_version == '1.1.0':
