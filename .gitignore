@@ -45,3 +45,4 @@ pip-delete-this-directory.txt
 *.log
 /.settings/
 /.pybuild/
+.idea/
